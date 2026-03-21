@@ -126,6 +126,21 @@ Assume **~20–22h effective**. **Sync checkpoints**: start (0h), mid-build (~8h
 
 **Schema ownership**: **T2** implements Pydantic; **T4** keeps README in sync; **T1** mirrors TypeScript types (optional: OpenAPI codegen).
 
+## Load balancing (share the work)
+
+Roles are **not** meant to be silos. If **T2 (backend)** or **T1 (frontend)** is overloaded, pull in **T4** and **T3** deliberately.
+
+| Who | Default focus | How to offload **backend (T2)** | How to offload **frontend (T1)** |
+|-----|----------------|----------------------------------|-----------------------------------|
+| **T4 — DevOps / Fetch** | Deploy, HTTPS, secrets, Fetch → callback | **Take load off T2:** own production **env wiring** (`MONGODB_URI`, `INTERNAL_API_KEY`, Twilio vars on the server), **smoke-test** `/health` and `/internal/reminders/fire` with `curl`, verify **CORS** against the real frontend origin, document **exact URLs** for Twilio/Fetch. Pair with T2 on **deploy-only bugs** (502, wrong port, missing env). Optionally implement thin glue in `internal_reminders` *only if* T2 assigns a small sub-task (keep **business rules** in T2). | **Help T1:** production **`VITE_API_URL`**, `npm run build` + static hosting checks, “works on school Wi‑Fi” verification, screenshot/recording setup. |
+| **T3 — WhatsApp / Twilio** | Inbound/outbound, sandbox, webhooks | **Pair with T2:** own **Twilio console** + **request signature** validation; T2 owns the FastAPI route and calling shared services. Build **one Twilio helper module** together so T2 does not own all Twilio docs. | **Take load off T1:** if WhatsApp is delayed, add a **minimal in-app “Stuck” panel** (textarea + button) that calls **`POST /nudge`** — same API as WhatsApp. Help with **error/loading copy**, accessibility pass, or second pair of eyes on React state bugs. |
+
+**Rules of thumb**
+
+- **Single source of truth:** Plans and nudges still flow through **T2’s** routes and schemas; T3/T4 **integrate**, they don’t fork product logic.
+- **Blocked more than ~30 minutes:** switch who is driving — often T4 debugs deploy/CORS, T2 fixes API, T3 verifies Twilio payloads.
+- **Fair “done”:** Everyone should be able to say they touched **integration** (T3/T4) plus **helped another track** at least once before demo.
+
 ## Judging narrative (~2 minutes)
 
 1. Overwhelming goal in web → instant tiny plan with if/then (Gemini).

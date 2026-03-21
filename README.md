@@ -14,6 +14,8 @@ Barebones **FastAPI** + **Vite/React** monorepo: API contract, CORS, and stub ro
 | [`docs/plans/T3_WHATSAPP.md`](docs/plans/T3_WHATSAPP.md) | WhatsApp / Twilio |
 | [`docs/plans/T4_DEVOPS_FETCH.md`](docs/plans/T4_DEVOPS_FETCH.md) | DevOps, Fetch.ai, deploy, demo |
 
+**Load balancing:** T4 can help **backend** with deploy/env/CORS and **frontend** with prod `VITE_API_URL` / build checks; T3 can help **frontend** (e.g. in-app “Stuck” → `POST /nudge`) when WhatsApp is behind. See [**Load balancing** in `docs/MASTER_PLAN.md`](docs/MASTER_PLAN.md#load-balancing-share-the-work).
+
 ## Quick start (no API keys required)
 
 ### Backend

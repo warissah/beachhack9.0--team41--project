@@ -2,6 +2,8 @@
 
 You make the **demo reliable**: deploy, secrets, Fetch → HTTPS callback, and the **story** for judges.
 
+**Load balancing — help the backend (T2):** After deploy exists, take point on **server env** (Mongo, Twilio, `INTERNAL_API_KEY`), **`curl`** verification of `/health` and `/internal/reminders/fire`, **CORS** for the production frontend origin, and **incident-style** debugging (502, wrong bind port, missing env). You do **not** own Pydantic schemas or core business logic unless T2 delegates a tiny, well-scoped task. You can also help **T1** with **`VITE_API_URL`** for prod and static build checks. Full table: **Load balancing** in [`../MASTER_PLAN.md`](../MASTER_PLAN.md).
+
 ## Your mission
 
 - **MongoDB Atlas**: cluster + connection string in `MONGODB_URI` (local `.env` only).

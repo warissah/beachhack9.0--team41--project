@@ -2,6 +2,8 @@
 
 You own **API correctness**, **JSON schemas**, and **calling Gemini** (via OpenClaw or direct Google SDK). WhatsApp and Fetch call **your** routes — they should not reimplement business logic.
 
+**Load balancing:** **T4** can take work off your plate for **deploy-only** issues: env vars on the server, `curl` checks for `/internal/reminders/fire`, CORS against the real site URL, and documenting URLs for webhooks. You still own schemas and core route behavior. See **Load balancing** in [`../MASTER_PLAN.md`](../MASTER_PLAN.md).
+
 ## Your mission
 
 - Replace **stub** `POST /plan` with real Gemini output that validates against Pydantic models.

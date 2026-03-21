@@ -2,6 +2,8 @@
 
 You own **inbound** webhooks and **outbound** messages. Business logic stays in **T2’s** services — you **call the same endpoints** the web app uses (or thin wrappers), so behavior stays consistent.
 
+**Load balancing — help the frontend (T1):** If WhatsApp integration is slow, help **T1** ship a minimal **in-app “Stuck”** flow (input + submit) that hits **`POST /nudge`** so the demo still shows anti-procrastination behavior in the browser. You can also pair on error/loading UI and copy. Details: **Load balancing** in [`../MASTER_PLAN.md`](../MASTER_PLAN.md).
+
 ## Your mission
 
 - `POST /webhooks/twilio` (or similar) — parse Twilio form body (`From`, `Body`, etc.).
