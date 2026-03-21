@@ -51,7 +51,7 @@ Open the printed local URL (usually <http://127.0.0.1:5173>). The home page call
 
 | File | Purpose |
 |------|---------|
-| [`backend/.env.example`](backend/.env.example) | Server + internal webhook secret + future Twilio/Mongo/Gemini/Fetch |
+| [`backend/.env.example`](backend/.env.example) | Server + internal webhook secret + Mongo + Gemini (`google-genai`) + Twilio/Fetch |
 | [`frontend/.env.example`](frontend/.env.example) | `VITE_API_URL` for browser → FastAPI |
 
 ## Testing

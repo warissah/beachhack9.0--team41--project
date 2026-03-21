@@ -4,7 +4,7 @@
 
 - **Ship one vertical slice**: user enters a goal on the web → gets a breakdown → can text WhatsApp when stuck → **Fetch.ai-driven proactive nudges** (e.g. post-plan check-in) → sees progress in the app.
 - **Defer everything else**: fancy analytics, multi-user social, full calendar sync, polished mobile apps, complex multi-agent swarms beyond one reminder loop.
-- **AI stack**: OpenClaw (or OpenAI-compatible layer) with **Google Gemini** for **language + JSON plans/nudges**; keep prompts **JSON-shaped** so web + WhatsApp share one contract.
+- **AI stack**: **Google Gemini** via the official **`google-genai`** Python SDK (no OpenClaw gateway for this hackathon — fewer moving parts). **JSON-shaped** prompts/responses so web + WhatsApp share one contract.
 - **Agent stack (mandatory)**: **Fetch.ai** (`uAgents` + **Agentverse**; optional **ASI:One** surface) owns **proactive orchestration** — see [Fetch ecosystem vs our stack](#fetch-ecosystem-asione-uagents-agentverse-vs-our-stack). It does **not** replace Gemini for primary planning copy; it **calls your backend** with optional **structured metadata** so you can **snooze**, **replan**, or soften messages (**strong integration story** — [below](#strong-integration-story-level-b--chosen)).
 - **ElevenLabs**: **out of scope** (ignore).
 - **Safety**: non-clinical disclaimer + crisis redirect text in web + WhatsApp (judges care).
@@ -39,7 +39,7 @@ These are **Fetch.ai** concepts from the sponsor stack; they map to our app like
 
 | Layer | Responsibility |
 |--------|----------------|
-| **Gemini (via OpenClaw)** | Natural language + structured JSON: **plan**, **stuck nudge** text, **two-minute re-entry**, and **replan** when backend asks (e.g. smaller steps after burnout) |
+| **Gemini (backend, `google-genai`)** | Natural language + structured JSON: **plan**, **stuck nudge** text, **two-minute re-entry**, and **replan** when backend asks (e.g. smaller steps after burnout) |
 | **Fetch (uAgent + Agentverse)** | **When** to act and **optional structured hints** to the backend: fire **`/internal/reminders/fire`** after e.g. 15m if no `session/end`; published agent proves the sponsor integration |
 
 Do **not** replace Gemini with Fetch for core planning copy in 24h; **do** show **uAgents + Agentverse** in the **demo** as the **proactive agent layer**.
@@ -65,8 +65,7 @@ flowchart LR
   WA[WhatsAppWebhook] --> API
   UAgent[uAgent_Agentverse] -->|"HTTPS plus agent_context"| API
   ASI[ASI_One_optional] -.->|"optional invoke"| UAgent
-  API --> OpenClaw[OpenClawOrCompatibleRouter]
-  OpenClaw --> Gemini[GeminiAPI]
+  API --> Gemini[Gemini_google_genai]
   API --> Mongo[MongoDBAtlas]
   API --> Twilio[TwilioWhatsApp]
 ```
