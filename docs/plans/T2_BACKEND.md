@@ -35,7 +35,7 @@ You own **API correctness**, **JSON schemas**, and **calling Gemini** with the o
 | `MONGODB_URI`, `MONGODB_DATABASE` | Motor + **`plans`** / **`sessions`** / **`chat_threads`** |
 | `GEMINI_API_KEY`, `GEMINI_MODEL`, `GEMINI_THINKING_LEVEL`, `GEMINI_LOG_TIMING` | Gemini via **`google-genai`** |
 | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_WHATSAPP_FROM` | Outbound WhatsApp (Twilio REST) |
-| `REMINDER_DEMO_WHATSAPP_TO` | Hackathon: destination when **`user_id`** in internal callback is not a WhatsApp address |
+| `REMINDER_DEMO_WHATSAPP_TO` | Fallback destination when **`user_id`** is not a phone and Mongo has no row (see **`user_whatsapp`** below) — keep for demos; teammates can rely on it |
 
 `backend/.env.example` also lists commented placeholders (**`DEMO_API_KEY`**, optional **`FETCH_AI_*`**) not read by `Settings` today (`extra="ignore"`).
 
@@ -60,6 +60,7 @@ You own **API correctness**, **JSON schemas**, and **calling Gemini** with the o
 - **`agent_context.push_back_start_minutes`:** writes **`next_reminder_at = now + N minutes`** and **skips** this send.
 - **`agent_context.replan_intensity`** (`smaller_steps` | `lighter`): **`replan_existing`** (Gemini + **`stub_replan`** fallback) updates embedded **`plan`** and **`replanned_at`**.
 - **`chat_threads`:** after **`POST /chat/finalize`** saves a plan, **`active_plan_id`** is set on the thread (WhatsApp uses stable **`wa-<user_id>`** thread ids).
+- **`user_whatsapp` (optional):** collection **`user_whatsapp`** — documents **`{ "user_id": "<string matching ReminderFireBody.user_id>", "whatsapp": "+15551234567" }`** so Fetch/agents can pass opaque ids; **`REMINDER_DEMO_WHATSAPP_TO`** remains the **fallback** if no row exists (team expectations unchanged).
 - **Indexes (optional):** unique **`plan_id`** on **`plans`** in Atlas.
 
 ## Gemini (`google-genai`)

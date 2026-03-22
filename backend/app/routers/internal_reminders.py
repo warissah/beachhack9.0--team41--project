@@ -14,6 +14,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from fastapi import APIRouter, Header, HTTPException, Request, status
+from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.config import get_settings
 from app.db.plans import (
@@ -21,6 +22,7 @@ from app.db.plans import (
     plan_response_from_doc,
     update_plan_fields,
 )
+from app.db.user_whatsapp import get_whatsapp_for_user_id
 from app.schemas.internal import AgentCallbackContext, ReminderFireBody, ReminderFireResponse
 from app.schemas.plan import PlanResponse
 from app.services.gemini_replan import replan_existing
@@ -39,13 +41,24 @@ def _normalize_whatsapp_addr(value: str) -> str:
     return f"whatsapp:{v}"
 
 
-def _resolve_destination(user_id: str, demo_to: str | None) -> str | None:
-    """Prefer a real address in user_id; else optional REMINDER_DEMO_WHATSAPP_TO for hackathon."""
+async def _resolve_destination(
+    db: AsyncIOMotorDatabase,
+    user_id: str,
+    demo_to: str | None,
+) -> str | None:
+    """
+    1) user_id already looks like whatsapp:+… or +E164
+    2) Mongo ``user_whatsapp`` collection: { user_id, whatsapp }
+    3) REMINDER_DEMO_WHATSAPP_TO (unchanged team default for demos)
+    """
     u = user_id.strip()
     if u.startswith("whatsapp:"):
         return u
     if u.startswith("+") and any(c.isdigit() for c in u):
         return f"whatsapp:{u.replace(' ', '')}"
+    mapped = await get_whatsapp_for_user_id(db, u)
+    if mapped:
+        return _normalize_whatsapp_addr(mapped)
     if demo_to and demo_to.strip():
         return _normalize_whatsapp_addr(demo_to)
     return None
@@ -173,13 +186,16 @@ async def fire_reminder(
     else:
         current_plan = plan_response_from_doc(plan_doc)
 
-    to = _resolve_destination(body.user_id, settings.reminder_demo_whatsapp_to)
+    to = await _resolve_destination(
+        db, body.user_id, settings.reminder_demo_whatsapp_to
+    )
     if not to:
         return ReminderFireResponse(
             status="skipped",
             detail=(
                 "No WhatsApp destination: use user_id=whatsapp:+E164 (or +E164), "
-                "or set REMINDER_DEMO_WHATSAPP_TO for hackathon demos."
+                "insert {user_id, whatsapp} in Mongo user_whatsapp, "
+                "or set REMINDER_DEMO_WHATSAPP_TO."
                 f"{ctx_tail}"
             ),
         )

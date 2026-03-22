@@ -31,8 +31,8 @@ class Settings(BaseSettings):
     twilio_account_sid: str | None = None
     twilio_auth_token: str | None = None
     twilio_whatsapp_from: str | None = None
-    # Hackathon: when user_id in /internal/reminders/fire is not a phone, send here (e.g. whatsapp:+15551234567)
-    # TODO: Drop this escape hatch once Mongo maps user_id → WhatsApp (see internal_reminders router).
+    # Hackathon fallback: when user_id is not a phone and no Mongo row in user_whatsapp, send here
+    # (e.g. whatsapp:+15551234567). Still useful for demos after user_whatsapp exists.
     reminder_demo_whatsapp_to: str | None = None
 
 

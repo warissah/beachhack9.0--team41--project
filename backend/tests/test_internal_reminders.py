@@ -263,3 +263,53 @@ def test_internal_reminder_replan_calls_replan_existing(
     assert res.status_code == 200
     assert res.json()["status"] == "sent"
     rp.assert_called_once()
+
+
+@pytest.mark.integration
+def test_internal_reminder_resolves_opaque_user_id_via_user_whatsapp(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Mongo user_whatsapp row supplies destination; REMINDER_DEMO_WHATSAPP_TO not needed."""
+    _twilio_env(monkeypatch)
+    plan = build_stub_plan("Ship the demo with a clear enough goal string here")
+    doc = {
+        "plan_id": plan.plan_id,
+        "goal": "g",
+        "plan": plan.model_dump(mode="json"),
+        "created_at": datetime.now(UTC),
+    }
+    app.state.mongo_db = MagicMock()
+    try:
+        with patch(
+            "app.routers.internal_reminders.get_plan_by_plan_id",
+            AsyncMock(return_value=doc),
+        ):
+            with patch(
+                "app.routers.internal_reminders.update_plan_fields",
+                AsyncMock(),
+            ):
+                with patch(
+                    "app.routers.internal_reminders.get_whatsapp_for_user_id",
+                    AsyncMock(return_value="+15559876543"),
+                ) as gw:
+                    with patch(
+                        "app.routers.internal_reminders.send_whatsapp_message",
+                        return_value="SM777",
+                    ) as send:
+                        res = client.post(
+                            "/internal/reminders/fire",
+                            json={
+                                "user_id": "opaque-fetch-user-id",
+                                "task_id": plan.plan_id,
+                                "reminder_kind": "check_in_15m",
+                            },
+                            headers={"X-Internal-Key": "test-internal-key"},
+                        )
+    finally:
+        app.state.mongo_db = None
+
+    assert res.status_code == 200
+    assert res.json()["status"] == "sent"
+    gw.assert_awaited()
+    send.assert_called_once()
+    assert "whatsapp:+15559876543" in send.call_args[0][0]
