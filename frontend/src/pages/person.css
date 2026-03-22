@@ -9,42 +9,42 @@
 
 .card {
   background: white;
-  padding: 40px;
-  border-radius: 16px;
-  width: 420px;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
+  padding: 50px 50px 40px 50px; /* bigger padding */
+  border-radius: 20px;
+  width: 500px; /* wider */
+  box-shadow: 0 15px 30px rgba(0, 0, 0, 0.08);
 }
 
 .title {
-  font-size: 22px;
-  font-weight: 600;
-  margin-bottom: 25px;
+  font-size: 26px; /* bigger title */
+  font-weight: 700;
+  margin-bottom: 30px; /* more space below */
   text-align: center;
 }
 
 .question {
-  margin-bottom: 20px;
+  margin-bottom: 30px; /* more spacing between questions */
 }
 
 .question p {
-  font-size: 14px;
-  margin-bottom: 10px;
+  font-size: 16px; /* slightly bigger text */
+  margin-bottom: 15px;
   color: #555;
 }
 
 .options {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 15px; /* bigger gap */
 }
 
 .option-btn {
-  padding: 8px 14px;
-  border-radius: 20px;
+  padding: 12px 20px; /* bigger clickable area */
+  border-radius: 25px;
   border: 1px solid #ddd;
   background: white;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 14px;
   transition: all 0.2s ease;
 }
 
@@ -60,14 +60,15 @@
 }
 
 .start-btn {
-  margin-top: 25px;
+  margin-top: 35px;
   width: 100%;
-  padding: 12px;
+  padding: 15px;
   border: none;
-  border-radius: 10px;
+  border-radius: 12px;
   background: #4f7cff;
   color: white;
-  font-size: 15px;
+  font-size: 16px;
+  font-weight: 600;
   cursor: pointer;
   transition: 0.2s;
 }

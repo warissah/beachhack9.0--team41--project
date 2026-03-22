@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useNavigate } from "react-router-dom"; // <-- import navigate
 import "./person.css";
 
 interface Props {
@@ -6,6 +7,8 @@ interface Props {
 }
 
 const Person: React.FC<Props> = ({ onComplete }) => {
+  const navigate = useNavigate(); // <-- initialize navigate
+
   const [problem, setProblem] = useState("");
   const [style, setStyle] = useState("");
   const [time, setTime] = useState("");
@@ -14,7 +17,8 @@ const Person: React.FC<Props> = ({ onComplete }) => {
     const data = { problem, style, time };
     console.log("User Preferences:", data);
 
-    onComplete(data); // send to parent
+    onComplete(data); // send to parent if needed
+    navigate("/dashboard"); // <-- go to dashboard
   };
 
   const renderOptions = (

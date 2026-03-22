@@ -20,20 +20,20 @@ const initialTasks: Task[] = [
   {
     id: 1,
     title: "Read Chapter 1",
- subtasks: [
-  { id: "1", text: "Open book", done: false, estimated_minutes: 2 },
-  { id: "2", text: "Read first page", done: false, estimated_minutes: 5 },
-],
+    subtasks: [
+      { id: "1", text: "Open book", done: false, estimated_minutes: 2 },
+      { id: "2", text: "Read first page", done: false, estimated_minutes: 5 },
+    ],
     currentSubtaskIndex: 0,
     quadrant: "Quick Wins",
   },
   {
     id: 2,
     title: "Exercise",
-  subtasks: [
-  { id: "1", text: "Open book", done: false, estimated_minutes: 2 },
-  { id: "2", text: "Read first page", done: false, estimated_minutes: 5 },
-],
+    subtasks: [
+      { id: "1", text: "Open book", done: false, estimated_minutes: 2 },
+      { id: "2", text: "Read first page", done: false, estimated_minutes: 5 },
+    ],
     currentSubtaskIndex: 0,
     quadrant: "Short Tasks",
   },
@@ -41,9 +41,9 @@ const initialTasks: Task[] = [
     id: 3,
     title: "Organize desk",
     subtasks: [
-  { id: "1", text: "Open book", done: false, estimated_minutes: 2 },
-  { id: "2", text: "Read first page", done: false, estimated_minutes: 5 },
-],
+      { id: "1", text: "Open book", done: false, estimated_minutes: 2 },
+      { id: "2", text: "Read first page", done: false, estimated_minutes: 5 },
+    ],
     currentSubtaskIndex: 0,
     quadrant: "Focus Tasks",
   },
@@ -51,9 +51,9 @@ const initialTasks: Task[] = [
     id: 4,
     title: "Plan weekend",
     subtasks: [
-  { id: "1", text: "Open book", done: false, estimated_minutes: 2 },
-  { id: "2", text: "Read first page", done: false, estimated_minutes: 5 },
-],
+      { id: "1", text: "Open book", done: false, estimated_minutes: 2 },
+      { id: "2", text: "Read first page", done: false, estimated_minutes: 5 },
+    ],
     currentSubtaskIndex: 0,
     quadrant: "Big Tasks",
   },
@@ -67,59 +67,64 @@ const getQuadrant = (minutes: number) => {
   return "Big Tasks";
 };
 
-
 const Dashboard: React.FC = () => {
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
   const [newTask, setNewTask] = useState("");
+  const [filter, setFilter] = useState<"all" | "not-started" | "in-progress">(
+    "all"
+  );
 
-const handleAddTask = async () => {
-  if (!newTask.trim()) return;
+  // ✅ Chat states inside component
+  const [chatOpen, setChatOpen] = useState(false);
+const [messages, setMessages] = useState<{ sender: "user" | "ai"; text: string }[]>([]);
 
-  try {
-    const res = await fetch("/plan", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ task: newTask }),
-    });
+  const [chatInput, setChatInput] = useState("");
 
-    const data = await res.json();
+  const handleAddTask = async () => {
+    if (!newTask.trim()) return;
 
-    const subtasks: Subtask[] = [
-      {
-        id: "0",
-        text: data.tiny_first_step.title,
-        done: false,
-        estimated_minutes: data.tiny_first_step.estimated_minutes,
-      },
-      ...data.steps.map((step: any) => ({
-        id: step.id,
-        text: step.title,
-        done: false,
-        estimated_minutes: step.estimated_minutes,
-      })),
-    ];
+    try {
+      const res = await fetch("/plan", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ task: newTask }),
+      });
 
-    const quadrant = getQuadrant(
-      data.tiny_first_step.estimated_minutes
-    );
+      const data = await res.json();
 
-    const newTaskObj: Task = {
-      id: Date.now(),
-      title: newTask,
-      subtasks,
-      currentSubtaskIndex: 0,
-      quadrant,
-    };
+      const subtasks: Subtask[] = [
+        {
+          id: "0",
+          text: data.tiny_first_step.title,
+          done: false,
+          estimated_minutes: data.tiny_first_step.estimated_minutes,
+        },
+        ...data.steps.map((step: any) => ({
+          id: step.id,
+          text: step.title,
+          done: false,
+          estimated_minutes: step.estimated_minutes,
+        })),
+      ];
 
-    setTasks((prev) => [...prev, newTaskObj]);
-    setNewTask("");
-  } catch (error) {
-    console.error("Error creating plan:", error);
-  }
-};
+      const quadrant = getQuadrant(data.tiny_first_step.estimated_minutes);
 
+      const newTaskObj: Task = {
+        id: Date.now(),
+        title: newTask,
+        subtasks,
+        currentSubtaskIndex: 0,
+        quadrant,
+      };
+
+      setTasks((prev) => [...prev, newTaskObj]);
+      setNewTask("");
+    } catch (error) {
+      console.error("Error creating plan:", error);
+    }
+  };
 
   const markSubtaskDone = (taskId: number) => {
     setTasks((prev) =>
@@ -143,15 +148,52 @@ const handleAddTask = async () => {
     );
   };
 
+const sendChatMessage = () => {
+  if (!chatInput.trim()) return;
+
+  const userMsg = { sender: "user" as const, text: chatInput };
+  const aiMsg = { sender: "ai" as const, text: "AI placeholder response" };
+
+  setMessages((prev: { sender: "user" | "ai"; text: string }[]) => [
+    ...prev,
+    userMsg,
+    aiMsg,
+  ]);
+
+  setChatInput("");
+};
+
   return (
     <div className="dashboard-container">
       <aside className="sidebar">
         <h2>Filters</h2>
         <ul>
-          <li>All Tasks</li>
-          <li>Not Started</li>
-          <li>In Progress</li>
+          <li
+            className={filter === "all" ? "selected-filter" : ""}
+            onClick={() => setFilter("all")}
+          >
+            All Tasks
+          </li>
+          <li
+            className={filter === "not-started" ? "selected-filter" : ""}
+            onClick={() => setFilter("not-started")}
+          >
+            Not Started
+          </li>
+          <li
+            className={filter === "in-progress" ? "selected-filter" : ""}
+            onClick={() => setFilter("in-progress")}
+          >
+            In Progress
+          </li>
         </ul>
+
+        <button
+          className="chat-toggle-btn"
+          onClick={() => setChatOpen(!chatOpen)}
+        >
+          Chat AI
+        </button>
       </aside>
       <main className="main-content">
         <h1>What do you need to do?</h1>
@@ -174,6 +216,14 @@ const handleAddTask = async () => {
               <div className="tasks-list">
                 {tasks
                   .filter((task) => task.quadrant === quadrant)
+                  .filter((task) => {
+                    if (filter === "all") return true;
+                    if (filter === "not-started")
+                      return task.currentSubtaskIndex === 0;
+                    if (filter === "in-progress")
+                      return task.currentSubtaskIndex > 0;
+                    return true;
+                  })
                   .map((task) => (
                     <div key={task.id} className="task-card">
                       <div className="task-title">{task.title}</div>
@@ -208,6 +258,30 @@ const handleAddTask = async () => {
             </div>
           ))}
         </div>
+
+        {chatOpen && (
+          <div className="floating-chat-box">
+            <div className="chat-header">
+              <span>AI Assistant</span>
+              <button onClick={() => setChatOpen(false)}>X</button>
+            </div>
+            <div className="chat-messages">
+              {messages.map((msg, idx) => (
+                <div key={idx} className={`chat-msg ${msg.sender}`}>
+                  {msg.text}
+                </div>
+              ))}
+            </div>
+            <div className="chat-input-container">
+              <input
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                placeholder="Type a message..."
+              />
+              <button onClick={sendChatMessage}>Send</button>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );
