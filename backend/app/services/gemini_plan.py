@@ -3,17 +3,20 @@
 from __future__ import annotations
 
 import logging
-import re
-import time
 from typing import Any
 
-from google import genai
 from google.genai import types
 from pydantic import ValidationError
 
-from app.config import get_settings
 from app.constants import PLAN_SAFETY_NOTE
 from app.schemas.plan import PlanRequest, PlanResponse
+from app.services.gemini_common import (
+    coerce_generated_json,
+    gemini_model_name,
+    gemini_thinking_config,
+    make_gemini_client,
+    timed_generate_content,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -27,24 +30,6 @@ Generate a fresh UUID string for "plan_id".
 Respect horizon, available_minutes, and energy: low energy means shorter steps and gentler wording in titles/descriptions."""
 
 
-def _model_name() -> str:
-    return get_settings().gemini_model
-
-
-def _thinking_config() -> types.ThinkingConfig | None:
-    """Map GEMINI_THINKING_LEVEL to SDK enum; None = leave model default (good for latency A/B)."""
-    raw = get_settings().gemini_thinking_level
-    if raw is None:
-        return None
-    level_map = {
-        "minimal": types.ThinkingLevel.MINIMAL,
-        "low": types.ThinkingLevel.LOW,
-        "medium": types.ThinkingLevel.MEDIUM,
-        "high": types.ThinkingLevel.HIGH,
-    }
-    return types.ThinkingConfig(thinking_level=level_map[raw])
-
-
 def _format_user_request(request: PlanRequest) -> str:
     return (
         f"Goal: {request.goal}\n"
@@ -54,24 +39,8 @@ def _format_user_request(request: PlanRequest) -> str:
     )
 
 
-def _strip_json_fence(text: str) -> str:
-    t = text.strip()
-    m = re.match(r"^```(?:json)?\s*\n?(.*?)\n?```\s*$", t, re.DOTALL | re.IGNORECASE)
-    return m.group(1).strip() if m else t
-
-
 def _coerce_plan_response(resp: Any) -> PlanResponse:
-    """Turn a generate_content response into PlanResponse."""
-    parsed = getattr(resp, "parsed", None)
-    if parsed is not None:
-        if isinstance(parsed, PlanResponse):
-            return parsed
-        return PlanResponse.model_validate(parsed)
-
-    raw = _strip_json_fence(getattr(resp, "text", None) or "")
-    if not raw:
-        raise ValueError("empty model response")
-    return PlanResponse.model_validate_json(raw)
+    return coerce_generated_json(resp, PlanResponse)
 
 
 def _with_standard_safety_note(plan: PlanResponse) -> PlanResponse:
@@ -83,12 +52,8 @@ def generate_plan(request: PlanRequest) -> PlanResponse:
     Call Gemini with structured JSON output (response_schema=PlanResponse).
     On validation failure, one repair retry with the error message.
     """
-    settings = get_settings()
-    if not settings.gemini_api_key:
-        raise RuntimeError("GEMINI_API_KEY is not set")
-
-    client = genai.Client(api_key=settings.gemini_api_key)
-    thinking = _thinking_config()
+    client = make_gemini_client()
+    thinking = gemini_thinking_config()
     base_config = types.GenerateContentConfig(
         system_instruction=_SYSTEM_INSTRUCTION,
         response_mime_type="application/json",
@@ -108,21 +73,15 @@ def generate_plan(request: PlanRequest) -> PlanResponse:
                 f"Validation error: {last_error}\n"
             )
 
-        t0 = time.perf_counter()
-        response = client.models.generate_content(
-            model=_model_name(),
+        response = timed_generate_content(
+            logger,
+            client,
+            feature="plan",
+            model=gemini_model_name(),
             contents=contents,
             config=base_config,
+            attempt=attempt + 1,
         )
-        elapsed_ms = (time.perf_counter() - t0) * 1000.0
-        if settings.gemini_log_timing:
-            logger.info(
-                "gemini generate_content model=%s thinking_level=%s attempt=%s elapsed_ms=%.1f",
-                _model_name(),
-                settings.gemini_thinking_level or "default",
-                attempt + 1,
-                elapsed_ms,
-            )
 
         try:
             return _with_standard_safety_note(_coerce_plan_response(response))

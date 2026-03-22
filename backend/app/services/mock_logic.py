@@ -1,0 +1,26 @@
+def handle_start(user_id: str) -> str:
+    return (
+        "Start here: open the document and write the title only. "
+        "Ignore formatting for now."
+    )
+
+
+def handle_stuck(user_id: str) -> str:
+    return (
+        "Got you. Try this: write just ONE bullet point. "
+        "Only 2 minutes."
+    )
+
+
+def handle_done(user_id: str) -> str:
+    return "Nice. That counts. Want to keep going or take a short break?"
+
+
+def handle_unknown() -> str:
+    return (
+        "I can help with:\n"
+        "- start\n"
+        "- stuck\n"
+        "- done\n\n"
+        "Try: stuck"
+    )
