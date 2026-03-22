@@ -1,20 +1,36 @@
-import { useState } from "react";
-import { Check, AlertCircle, Clock, ChevronDown, ChevronRight, MoreHorizontal } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import { Check, AlertCircle, Clock, ChevronDown, ChevronRight, MoreHorizontal, Trash2 } from "lucide-react";
 import type { Task } from "../context/AppContext";
 import SubtaskRow from "./SubtaskRow";
 
 interface TaskCardProps {
   task: Task;
+  projectId: string;
   projectColor: string;
   onToggleSubtask: (taskId: string, subtaskId: string) => void;
+  onDeleteTask: (projectId: string, taskId: string) => void;
+  onRemoveSubtask: (projectId: string, taskId: string, subtaskId: string) => void;
 }
 
-export default function TaskCard({ task, projectColor, onToggleSubtask }: TaskCardProps) {
+export default function TaskCard({ task, projectId, projectColor, onToggleSubtask, onDeleteTask, onRemoveSubtask }: TaskCardProps) {
   const [open, setOpen] = useState(true);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
   const doneCount = task.subtasks?.filter(s => s.done).length || 0;
   const totalCount = task.subtasks?.length || 0;
   const progress = totalCount > 0 ? (doneCount / totalCount) * 100 : 0;
   const nextStep = task.subtasks?.find(s => !s.done);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   return (
     <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm hover:shadow-md transition-shadow">
@@ -28,7 +44,7 @@ export default function TaskCard({ task, projectColor, onToggleSubtask }: TaskCa
               }
             </div>
             <div className="min-w-0">
-              <h3 className={`font-semibold text-[16px] leading-tight ${task.done ? "line-through text-gray-400" : "text-gray-900"}`}>
+              <h3 className={`font-medium text-[15px] leading-tight ${task.done ? "line-through text-gray-400" : "text-gray-600"}`}>
                 {task.title}
               </h3>
               <div className="flex items-center gap-3 mt-1.5">
@@ -46,9 +62,26 @@ export default function TaskCard({ task, projectColor, onToggleSubtask }: TaskCa
               </div>
             </div>
           </div>
-          <button className="p-1 rounded-md hover:bg-gray-100 transition-colors flex-shrink-0">
-            <MoreHorizontal className="w-4 h-4 text-gray-400" />
-          </button>
+
+          {/* 3-dot menu */}
+          <div className="relative flex-shrink-0" ref={menuRef}>
+            <button
+              onClick={() => setMenuOpen(o => !o)}
+              className="p-1 rounded-md hover:bg-gray-100 transition-colors"
+            >
+              <MoreHorizontal className="w-4 h-4 text-gray-400" />
+            </button>
+            {menuOpen && (
+              <div className="absolute right-0 top-7 z-50 w-40 bg-white border border-gray-200 rounded-xl shadow-lg py-1">
+                <button
+                  onClick={() => { onDeleteTask(projectId, task.id); setMenuOpen(false); }}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-red-500 hover:bg-red-50 transition-colors"
+                >
+                  <Trash2 className="w-3.5 h-3.5" /> Delete task
+                </button>
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
@@ -76,6 +109,7 @@ export default function TaskCard({ task, projectColor, onToggleSubtask }: TaskCa
                   subtask={s}
                   isNextStep={nextStep?.id === s.id}
                   onToggle={() => onToggleSubtask(task.id, s.id)}
+                  onDelete={() => onRemoveSubtask(projectId, task.id, s.id)}
                 />
               ))}
             </div>

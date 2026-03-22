@@ -1,33 +1,62 @@
 import { useState } from "react";
-import { Brain, Send, Sparkles } from "lucide-react";
+import { Brain, Send, Sparkles, Plus } from "lucide-react";
+import { postNudge } from "../api/client";
+import { useAppContext } from "../context/AppContext";
 
 export default function AIChatInput() {
+  const { planResponse, activeProject, projects, addSubtask } = useAppContext();
   const [value, setValue] = useState("");
   const [expanded, setExpanded] = useState(false);
   const [thinking, setThinking] = useState(false);
-  const [response, setResponse] = useState<{ text: string; steps: string[] } | null>(null);
+  const [response, setResponse] = useState<{ message: string; two_minute_action: string } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [subtaskAdded, setSubtaskAdded] = useState(false);
 
-  const handleSubmit = () => {
+  // Find the first incomplete task in the active project to add subtasks to
+  const activeTaskId = (() => {
+    if (!activeProject) return null;
+    const proj = projects.find(p => p.id === activeProject);
+    return proj?.tasks.find(t => !t.done)?.id ?? null;
+  })();
+
+  const handleSubmit = async () => {
     if (!value.trim()) return;
     setThinking(true);
     setExpanded(true);
-    setTimeout(() => {
-      setThinking(false);
-      setResponse({
-        text: "Let's break that down. Here's what I'd suggest:",
-        steps: [
-          "Open a blank doc — just title it for now (1 min)",
-          "Write one sentence about what you want to say (1 min)",
-          "List 3 bullet points of key ideas (2 min)",
-          "Expand each bullet into a short paragraph (5 min)",
-        ],
+    setError(null);
+    setResponse(null);
+    setSubtaskAdded(false);
+
+    try {
+      const nudge = await postNudge({
+        task_id: planResponse?.plan_id ?? activeTaskId ?? "unknown",
+        context: value.trim(),
       });
-    }, 2000);
+      setResponse({ message: nudge.message, two_minute_action: nudge.two_minute_action });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't reach the coach. Try again.");
+    } finally {
+      setThinking(false);
+    }
+  };
+
+  const handleAddSubtask = () => {
+    if (!response?.two_minute_action || !activeProject || !activeTaskId) return;
+    addSubtask(activeProject, activeTaskId, response.two_minute_action);
+    setSubtaskAdded(true);
+  };
+
+  const handleDismiss = () => {
+    setExpanded(false);
+    setResponse(null);
+    setError(null);
+    setSubtaskAdded(false);
+    setValue("");
   };
 
   return (
     <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-30 w-full max-w-xl px-4">
-      {expanded && (thinking || response) && (
+      {expanded && (thinking || response || error) && (
         <div className="mb-3 bg-white/90 backdrop-blur-xl border border-gray-200 rounded-2xl shadow-lg p-5" style={{ fontFamily: "'DM Sans', sans-serif" }}>
           {thinking ? (
             <div className="flex items-center gap-3 text-sm text-gray-500">
@@ -38,6 +67,11 @@ export default function AIChatInput() {
               </div>
               Breaking that down for you...
             </div>
+          ) : error ? (
+            <div>
+              <p className="text-sm text-red-500">{error}</p>
+              <button onClick={handleDismiss} className="mt-3 text-[12px] text-gray-400 hover:text-gray-600 transition-colors">Dismiss</button>
+            </div>
           ) : response && (
             <div>
               <div className="flex items-center gap-2 mb-3">
@@ -46,21 +80,24 @@ export default function AIChatInput() {
                 </div>
                 <span className="text-sm font-medium text-gray-900">Coach</span>
               </div>
-              <p className="text-sm text-gray-600 mb-3">{response.text}</p>
-              <div className="space-y-2">
-                {response.steps.map((step, i) => (
-                  <div key={i} className="flex items-start gap-2.5 text-sm">
-                    <span className="w-5 h-5 rounded-full bg-gray-100 flex items-center justify-center text-[11px] font-semibold text-gray-500 flex-shrink-0 mt-0.5">{i + 1}</span>
-                    <span className="text-gray-700">{step}</span>
-                  </div>
-                ))}
-              </div>
-              <button
-                onClick={() => { setExpanded(false); setResponse(null); setValue(""); }}
-                className="mt-4 text-[12px] text-gray-400 hover:text-gray-600 transition-colors"
-              >
-                Dismiss
-              </button>
+              <p className="text-sm text-gray-600 mb-3">{response.message}</p>
+              {response.two_minute_action && (
+                <div className="bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 mb-3">
+                  <p className="text-[11px] font-semibold text-amber-600 uppercase tracking-wider mb-1">2-Minute Action</p>
+                  <p className="text-sm text-gray-700">{response.two_minute_action}</p>
+                  {activeProject && activeTaskId && (
+                    <button
+                      onClick={handleAddSubtask}
+                      disabled={subtaskAdded}
+                      className="mt-2 flex items-center gap-1.5 text-[12px] font-medium text-amber-700 hover:text-amber-900 disabled:opacity-50 transition-colors"
+                    >
+                      <Plus className="w-3 h-3" />
+                      {subtaskAdded ? "Added to task ✓" : "Add as subtask"}
+                    </button>
+                  )}
+                </div>
+              )}
+              <button onClick={handleDismiss} className="text-[12px] text-gray-400 hover:text-gray-600 transition-colors">Dismiss</button>
             </div>
           )}
         </div>

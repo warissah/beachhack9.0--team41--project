@@ -1,8 +1,10 @@
 import { createContext, useContext } from "react";
+import type { PlanResponse } from "../api/client";
 
 export interface Subtask {
   id: string;
   title: string;
+  description?: string;
   done: boolean;
   tinyStart?: boolean;
 }
@@ -25,6 +27,14 @@ export interface Project {
   tasks: Task[];
 }
 
+export interface DeletedTask {
+  task: Task;
+  projectId: string;
+  projectName: string;
+  projectEmoji: string;
+  projectColor: string;
+}
+
 export interface AppContextType {
   projects: Project[];
   activeProject: string | null;
@@ -32,6 +42,16 @@ export interface AppContextType {
   activeFilter: string | null;
   setActiveFilter: (filter: string | null) => void;
   toggleSubtask: (taskId: string, subtaskId: string) => void;
+  addSubtask: (projectId: string, taskId: string, title: string) => void;
+  removeSubtask: (projectId: string, taskId: string, subtaskId: string) => void;
+  deleteTask: (projectId: string, taskId: string) => void;
+  restoreTask: (taskId: string) => void;
+  deletedTasks: DeletedTask[];
+  addProject: (project: Project) => void;
+  planResponse: PlanResponse | null;
+  setPlanResponse: (plan: PlanResponse | null) => void;
+  sessionActive: boolean;
+  setSessionActive: (active: boolean) => void;
 }
 
 export const AppContext = createContext<AppContextType | null>(null);

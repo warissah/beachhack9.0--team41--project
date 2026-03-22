@@ -1,14 +1,25 @@
 import { useState } from "react";
 import { Brain, Timer, Coffee, Sparkles, ArrowRight } from "lucide-react";
+import { postPlan } from "../api/client";
+import type { PlanResponse } from "../api/client";
 
 interface OnboardingProps {
-  onComplete: () => void;
+  onComplete: (plan: PlanResponse, goal: string) => void;
 }
+
+const TIME_TO_MINUTES: Record<string, number> = {
+  "15min": 15,
+  "30min": 30,
+  "1hr": 60,
+  "2hr+": 120,
+};
 
 export default function Onboarding({ onComplete }: OnboardingProps) {
   const [step, setStep] = useState(0);
-  const [answers, setAnswers] = useState({ bigThing: "", time: "", style: "" });
+  const [answers, setAnswers] = useState({ goal: "", time: "", energy: "" });
   const [fadeClass, setFadeClass] = useState("opacity-100 translate-y-0");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const goNext = () => {
     setFadeClass("opacity-0 translate-y-4");
@@ -19,13 +30,30 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
     }, 300);
   };
 
+  const handleSubmit = async (finalAnswers: typeof answers) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const plan = await postPlan({
+        goal: finalAnswers.goal,
+        horizon: "today",
+        available_minutes: TIME_TO_MINUTES[finalAnswers.time] ?? 30,
+        energy: finalAnswers.energy as "low" | "medium" | "high",
+      });
+      onComplete(plan, finalAnswers.goal);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
+      setLoading(false);
+    }
+  };
+
   const steps = [
     {
       icon: <Brain className="w-8 h-8" />,
       label: "Let's get unstuck.",
       question: "What's one big thing on your mind right now?",
-      placeholder: "e.g. I need to find a new job...",
-      field: "bigThing" as const,
+      placeholder: "e.g. I need to finish my resume...",
+      field: "goal" as const,
     },
     {
       icon: <Timer className="w-8 h-8" />,
@@ -42,34 +70,36 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
     {
       icon: <Coffee className="w-8 h-8" />,
       label: "Almost there.",
-      question: "How do you like to work?",
+      question: "How's your energy level right now?",
       options: [
-        { label: "Short bursts (5-15 min)", emoji: "⚡", value: "bursts" },
-        { label: "Deep focus blocks", emoji: "🧘", value: "deep" },
-        { label: "Mix of both", emoji: "🔀", value: "mix" },
+        { label: "Low — need small steps", emoji: "🌙", value: "low" },
+        { label: "Medium — ready to work", emoji: "⚡", value: "medium" },
+        { label: "High — let's go!", emoji: "🔥", value: "high" },
       ],
-      field: "style" as const,
+      field: "energy" as const,
     },
   ];
 
-  if (step >= steps.length) {
+  if (loading) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(249,250,251,0.97)", fontFamily: "'DM Sans', sans-serif" }}>
-        <div className={`max-w-md text-center transition-all duration-500 ${fadeClass}`}>
-          <div className="w-16 h-16 rounded-2xl bg-emerald-50 flex items-center justify-center mx-auto mb-6">
-            <Sparkles className="w-8 h-8 text-emerald-500" />
+        <div className="max-w-md text-center">
+          <div className="w-16 h-16 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto mb-6">
+            <Sparkles className="w-8 h-8 text-gray-600 animate-pulse" />
           </div>
-          <h2 className="text-2xl font-semibold text-gray-900 mb-2">You're all set.</h2>
-          <p className="text-gray-500 mb-8 leading-relaxed">
-            I've broken everything down into tiny steps.<br />
-            Your first one will take less than 2 minutes.
-          </p>
-          <button
-            onClick={onComplete}
-            className="inline-flex items-center gap-2 px-6 py-3 bg-gray-900 text-white rounded-xl font-medium hover:bg-gray-800 transition-colors"
-          >
-            Let's go <ArrowRight className="w-4 h-4" />
-          </button>
+          <h2 className="text-2xl font-semibold text-gray-900 mb-2">Building your plan...</h2>
+          <p className="text-gray-400 text-sm">Breaking your goal into tiny, manageable steps.</p>
+          {error && (
+            <div className="mt-6">
+              <p className="text-red-500 text-sm mb-4">{error}</p>
+              <button
+                onClick={() => handleSubmit(answers)}
+                className="inline-flex items-center gap-2 px-6 py-3 bg-gray-900 text-white rounded-xl font-medium hover:bg-gray-800 transition-colors"
+              >
+                Try again <ArrowRight className="w-4 h-4" />
+              </button>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -116,7 +146,15 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
               {current.options!.map(opt => (
                 <button
                   key={opt.value}
-                  onClick={() => { setAnswers({ ...answers, [current.field]: opt.value }); goNext(); }}
+                  onClick={() => {
+                    const newAnswers = { ...answers, [current.field]: opt.value };
+                    setAnswers(newAnswers);
+                    if (step < steps.length - 1) {
+                      goNext();
+                    } else {
+                      handleSubmit(newAnswers);
+                    }
+                  }}
                   className="flex items-center gap-4 px-5 py-4 rounded-xl border border-gray-200 bg-white hover:border-gray-400 hover:bg-gray-50 transition-all text-left group"
                 >
                   <span className="text-xl">{opt.emoji}</span>
