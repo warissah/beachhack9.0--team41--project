@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { Target, Menu } from "lucide-react";
 import { AppContext } from "./context/AppContext";
 import type { Project, DeletedTask } from "./context/AppContext";
@@ -18,7 +18,14 @@ export default function App() {
   const [projects, setProjects] = useState(INITIAL_PROJECTS);
   const [activeProject, setActiveProject] = useState<string | null>("p1");
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
-  const [planResponse, setPlanResponse] = useState<PlanResponse | null>(null);
+  const [planByProjectId, setPlanByProjectId] = useState<Record<string, PlanResponse>>({});
+  const registerPlan = useCallback((plan: PlanResponse) => {
+    setPlanByProjectId(prev => ({ ...prev, [`plan-${plan.plan_id}`]: plan }));
+  }, []);
+  const planResponse = useMemo(() => {
+    if (!activeProject || !activeProject.startsWith("plan-")) return null;
+    return planByProjectId[activeProject] ?? null;
+  }, [activeProject, planByProjectId]);
   const [deletedTasks, setDeletedTasks] = useState<DeletedTask[]>([]);
   const [userEmail, setUserEmail] = useState<string | null>(guestUser?.email ?? null);
   const [userPhone, setUserPhone] = useState<string | null>(guestUser?.phone ?? null);
@@ -56,6 +63,7 @@ export default function App() {
             const plan = ev.data.plan as import("./api/client").PlanResponse;
             const goal = ev.data.goal || plan.summary;
             const project = planToProject(plan, goal);
+            registerPlan(plan);
             setProjects(prev => [project, ...prev]);
             setActiveProject(project.id);
             setActiveFilter(null);
@@ -67,7 +75,7 @@ export default function App() {
     };
     const id = setInterval(poll, 4000);
     return () => clearInterval(id);
-  }, []);
+  }, [registerPlan]);
 
   const planToProject = (plan: PlanResponse, goal: string): Project => {
     const totalMin = plan.tiny_first_step.estimated_minutes +
@@ -95,7 +103,7 @@ export default function App() {
     setGuestUser(getStoredGuestUser());
     setUserEmail(email);
     setUserPhone(phone);
-    setPlanResponse(plan);
+    registerPlan(plan);
     const planProject = planToProject(plan, goal);
     setProjects(prev => [planProject, ...prev]);
     setActiveProject(planProject.id);
@@ -216,7 +224,7 @@ export default function App() {
     projects, activeProject, setActiveProject,
     activeFilter, setActiveFilter,
     toggleSubtask, addSubtask, removeSubtask, deleteTask, restoreTask, deletedTasks, addProject,
-    planResponse, setPlanResponse,
+    planResponse, registerPlan,
     sessionActive: false, setSessionActive: () => {},
     whatsAppNudge, clearWhatsAppNudge: () => setWhatsAppNudge(null),
   };

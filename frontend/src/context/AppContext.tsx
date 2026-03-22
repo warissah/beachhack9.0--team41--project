@@ -56,7 +56,7 @@ export interface AppContextType {
   deletedTasks: DeletedTask[];
   addProject: (project: Project) => void;
   planResponse: PlanResponse | null;
-  setPlanResponse: (plan: PlanResponse | null) => void;
+  registerPlan: (plan: PlanResponse) => void;
   sessionActive: boolean;
   setSessionActive: (active: boolean) => void;
 }

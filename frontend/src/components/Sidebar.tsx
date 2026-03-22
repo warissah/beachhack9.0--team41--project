@@ -16,7 +16,7 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ collapsed, onToggle, hasGuestUser, onResetGuestUser }: SidebarProps) {
-  const { projects, activeProject, setActiveProject, activeFilter, setActiveFilter, addProject, deletedTasks } = useAppContext();
+  const { projects, activeProject, setActiveProject, activeFilter, setActiveFilter, addProject, deletedTasks, registerPlan } = useAppContext();
   const [expanded, setExpanded] = useState<Record<string, boolean>>({ p1: true });
   const [search, setSearch] = useState("");
   const [showNewTask, setShowNewTask] = useState(false);
@@ -54,6 +54,7 @@ export default function Sidebar({ collapsed, onToggle, hasGuestUser, onResetGues
       });
       const totalMin = plan.tiny_first_step.estimated_minutes +
         plan.steps.reduce((acc, s) => acc + s.estimated_minutes, 0);
+      registerPlan(plan);
       addProject({
         id: `plan-${plan.plan_id}`,
         name: newGoal.trim(),
