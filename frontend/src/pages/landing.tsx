@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import "./Landing.css";
+import "./landing.css";
 
 interface LandingProps {
   onLogin: () => void;
