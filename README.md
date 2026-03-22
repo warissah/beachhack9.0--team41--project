@@ -1,5 +1,7 @@
 # BeachHacks — ADHD execution coach
 
+Team: Warissa Hossain, Gemma Truong, Sky Tran, Jesus E. Gutierrez
+
 **Team 41 · BeachHack 9.0** — [GitHub repo](https://github.com/warissah/tinytasks)
 
 **FastAPI** + **Vite/React** monorepo. **Architecture, roles, and hackathon planning** live under [`docs/MASTER_PLAN.md`](docs/MASTER_PLAN.md) and [`docs/plans/`](docs/plans/) (T1–T4).
