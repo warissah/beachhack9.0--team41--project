@@ -3,9 +3,25 @@ import { useAppContext } from "../context/AppContext";
 import { getProgress, getNextTinyStart } from "../utils/taskUtils";
 import TaskCard from "./TaskCard";
 import type { Task } from "../context/AppContext";
+import SessionStrip from "./SessionStrip";
 
 export default function MainCanvas() {
-  const { projects, activeProject, activeFilter, toggleSubtask, deleteTask, removeSubtask, restoreTask, deletedTasks, planResponse } = useAppContext();
+  const {
+    projects,
+    activeProject,
+    activeFilter,
+    toggleSubtask,
+    deleteTask,
+    removeSubtask,
+    restoreTask,
+    deletedTasks,
+    planResponse,
+    sessionActive,
+    sessionTaskId,
+    sessionStartedAt,
+    startSession,
+    endSession,
+  } = useAppContext();
 
   let breadcrumb = "All Tasks";
   let displayTasks: Task[] = [];
@@ -40,6 +56,7 @@ export default function MainCanvas() {
   const project = projects.find(x => x.id === activeProject);
   const progress = project ? getProgress(project.tasks) : null;
   const nextTiny = project ? getNextTinyStart(project.tasks) : null;
+  const activeTask = project?.tasks.find(t => !t.done) ?? project?.tasks[0] ?? null;
   const showPlanContract =
     planResponse &&
     activeProject === `plan-${planResponse.plan_id}` &&
@@ -136,6 +153,19 @@ export default function MainCanvas() {
           </div>
         )}
 
+        {project && activeTask && activeFilter !== "trash" && (
+          <SessionStrip
+            taskId={activeTask.id}
+            taskTitle={activeTask.title}
+            nextStepTitle={nextTiny?.title ?? null}
+            sessionActive={sessionActive}
+            sessionTaskId={sessionTaskId}
+            sessionStartedAt={sessionStartedAt}
+            onStart={() => startSession(activeTask.id)}
+            onEnd={endSession}
+          />
+        )}
+
         <div className="space-y-4 mt-4">
           {displayTasks.map(t => (
             <TaskCard
@@ -146,6 +176,7 @@ export default function MainCanvas() {
               onToggleSubtask={toggleSubtask}
               onDeleteTask={deleteTask}
               onRemoveSubtask={removeSubtask}
+              isSessionFocus={sessionActive && sessionTaskId === t.id}
             />
           ))}
         </div>

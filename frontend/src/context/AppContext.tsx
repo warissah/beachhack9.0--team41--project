@@ -58,7 +58,10 @@ export interface AppContextType {
   planResponse: PlanResponse | null;
   registerPlan: (plan: PlanResponse) => void;
   sessionActive: boolean;
-  setSessionActive: (active: boolean) => void;
+  sessionTaskId: string | null;
+  sessionStartedAt: string | null;
+  startSession: (taskId: string) => Promise<void>;
+  endSession: (reflection: "done" | "blocked" | "partial") => Promise<void>;
 }
 
 export const AppContext = createContext<AppContextType | null>(null);

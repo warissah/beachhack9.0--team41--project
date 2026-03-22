@@ -8,7 +8,7 @@ import Sidebar from "./components/Sidebar";
 import MainCanvas from "./components/MainCanvas";
 import AIChatInput from "./components/AIChatInput";
 import type { PlanResponse } from "./api/client";
-import { getDemoEvents } from "./api/client";
+import { getDemoEvents, postSessionEnd, postSessionStart } from "./api/client";
 import { clearStoredGuestUser, getStoredGuestUser } from "./utils/guestUser";
 
 export default function App() {
@@ -30,6 +30,8 @@ export default function App() {
   const [userEmail, setUserEmail] = useState<string | null>(guestUser?.email ?? null);
   const [userPhone, setUserPhone] = useState<string | null>(guestUser?.phone ?? null);
   const [whatsAppNudge, setWhatsAppNudge] = useState<{ message: string; two_minute_action: string } | null>(null);
+  const [sessionTaskId, setSessionTaskId] = useState<string | null>(null);
+  const [sessionStartedAt, setSessionStartedAt] = useState<string | null>(null);
   const lastEventTs = useRef<number | undefined>(undefined);
 
   // Poll for WhatsApp-triggered events every 4 seconds
@@ -220,12 +222,29 @@ export default function App() {
     setActiveFilter(null);
   }, []);
 
+  const startSession = useCallback(async (taskId: string) => {
+    await postSessionStart(taskId);
+    setSessionTaskId(taskId);
+    setSessionStartedAt(new Date().toISOString());
+  }, []);
+
+  const endSession = useCallback(async (reflection: "done" | "blocked" | "partial") => {
+    if (!sessionTaskId) return;
+    await postSessionEnd(sessionTaskId, reflection);
+    setSessionTaskId(null);
+    setSessionStartedAt(null);
+  }, [sessionTaskId]);
+
   const contextValue = {
     projects, activeProject, setActiveProject,
     activeFilter, setActiveFilter,
     toggleSubtask, addSubtask, removeSubtask, deleteTask, restoreTask, deletedTasks, addProject,
     planResponse, registerPlan,
-    sessionActive: false, setSessionActive: () => {},
+    sessionActive: sessionTaskId !== null,
+    sessionTaskId,
+    sessionStartedAt,
+    startSession,
+    endSession,
     whatsAppNudge, clearWhatsAppNudge: () => setWhatsAppNudge(null),
   };
 

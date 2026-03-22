@@ -10,9 +10,10 @@ interface TaskCardProps {
   onToggleSubtask: (taskId: string, subtaskId: string) => void;
   onDeleteTask: (projectId: string, taskId: string) => void;
   onRemoveSubtask: (projectId: string, taskId: string, subtaskId: string) => void;
+  isSessionFocus?: boolean;
 }
 
-export default function TaskCard({ task, projectId, projectColor, onToggleSubtask, onDeleteTask, onRemoveSubtask }: TaskCardProps) {
+export default function TaskCard({ task, projectId, projectColor, onToggleSubtask, onDeleteTask, onRemoveSubtask, isSessionFocus = false }: TaskCardProps) {
   const [open, setOpen] = useState(true);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -33,7 +34,11 @@ export default function TaskCard({ task, projectId, projectColor, onToggleSubtas
   }, []);
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm hover:shadow-md transition-shadow">
+    <div className={`rounded-2xl border shadow-sm transition-all ${
+      isSessionFocus
+        ? "bg-[linear-gradient(135deg,#fff8ec_0%,#ffffff_100%)] border-amber-300/80 shadow-[0_24px_65px_-45px_rgba(245,158,11,0.75)]"
+        : "bg-white border-gray-200/80 hover:shadow-md"
+    }`}>
       <div className="px-5 pt-5 pb-3">
         <div className="flex items-start justify-between mb-3">
           <div className="flex items-start gap-3 flex-1 min-w-0">
