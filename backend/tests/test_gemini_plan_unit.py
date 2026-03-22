@@ -7,21 +7,17 @@ from pydantic import ValidationError
 
 from google.genai import types
 
-import app.services.gemini_plan as gemini_plan_mod
-from app.schemas.plan import PlanResponse
+import app.services.gemini_common as gemini_common_mod
 from app.constants import PLAN_SAFETY_NOTE
-from app.services.gemini_plan import (
-    _coerce_plan_response,
-    _strip_json_fence,
-    _thinking_config,
-    _with_standard_safety_note,
-)
+from app.schemas.plan import PlanResponse
+from app.services.gemini_common import gemini_thinking_config, strip_json_fence
+from app.services.gemini_plan import _coerce_plan_response, _with_standard_safety_note
 
 
 def test_strip_json_fence() -> None:
     raw = '{"a": 1}'
-    assert _strip_json_fence(f"```json\n{raw}\n```") == raw
-    assert _strip_json_fence(raw) == raw
+    assert strip_json_fence(f"```json\n{raw}\n```") == raw
+    assert strip_json_fence(raw) == raw
 
 
 _VALID_MINIMAL = (
@@ -61,19 +57,19 @@ def test_coerce_invalid_raises() -> None:
 
 def test_thinking_config_none_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        gemini_plan_mod,
+        gemini_common_mod,
         "get_settings",
         lambda: SimpleNamespace(gemini_thinking_level=None),
     )
-    assert _thinking_config() is None
+    assert gemini_thinking_config() is None
 
 
 def test_thinking_config_minimal(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        gemini_plan_mod,
+        gemini_common_mod,
         "get_settings",
         lambda: SimpleNamespace(gemini_thinking_level="minimal"),
     )
-    tc = _thinking_config()
+    tc = gemini_thinking_config()
     assert tc is not None
     assert tc.thinking_level == types.ThinkingLevel.MINIMAL

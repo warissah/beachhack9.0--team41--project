@@ -19,15 +19,16 @@ def _configure_app_logging() -> None:
     if root.level == logging.NOTSET or root.level > logging.INFO:
         root.setLevel(logging.INFO)
 
-    for name in ("app", "app.services", "app.services.gemini_plan"):
+    for name in ("app", "app.services"):
         logging.getLogger(name).setLevel(logging.INFO)
 
-    gemini_log = logging.getLogger("app.services.gemini_plan")
-    if not any(getattr(h, _GEMINI_LOG_HANDLER_MARKER, False) for h in gemini_log.handlers):
+    # One handler on app.services: child loggers (gemini_plan, gemini_nudge, …) propagate here.
+    services_log = logging.getLogger("app.services")
+    if not any(getattr(h, _GEMINI_LOG_HANDLER_MARKER, False) for h in services_log.handlers):
         h = logging.StreamHandler(sys.stderr)
         setattr(h, _GEMINI_LOG_HANDLER_MARKER, True)
         h.setFormatter(logging.Formatter("%(levelname)s:%(name)s:%(message)s"))
-        gemini_log.addHandler(h)
+        services_log.addHandler(h)
 
 
 def create_app() -> FastAPI:
