@@ -83,6 +83,25 @@ async def save_thread(db: AsyncIOMotorDatabase | None, doc: dict[str, Any]) -> N
         await _mem_put(doc)
 
 
+async def replace_thread(
+    db: AsyncIOMotorDatabase | None,
+    thread_id: str,
+    *,
+    messages: list[dict[str, Any]] | None = None,
+    draft: DraftPlanFields | None = None,
+) -> None:
+    """Replace a thread's conversational state, used when a user explicitly starts a new task."""
+    doc = _new_doc(thread_id)
+    if messages is not None:
+        doc["messages"] = messages
+    if draft is not None:
+        doc["draft"] = draft.model_dump()
+    if db is not None:
+        await db[CHAT_THREADS_COLLECTION].replace_one({"thread_id": thread_id}, doc, upsert=True)
+        return
+    await _mem_put(doc)
+
+
 async def get_active_plan_id_for_thread(
     db: AsyncIOMotorDatabase | None, thread_id: str
 ) -> str | None:

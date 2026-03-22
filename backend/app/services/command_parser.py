@@ -12,12 +12,16 @@ _FINALIZE = frozenset(
     }
 )
 
+_HELP = frozenset({"help", "commands"})
+
 
 def parse_command(body: str) -> str:
     text = (body or "").strip()
     if not text:
         return "unknown"
     lowered = text.lower().rstrip(".!?")
+    if lowered in _HELP:
+        return "help"
     # Whole-message triggers only so we do not misfire on "yesterday" or "ok cool".
     if lowered in _FINALIZE:
         return "finalize"

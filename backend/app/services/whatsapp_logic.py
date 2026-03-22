@@ -5,8 +5,9 @@ import logging
 from fastapi import HTTPException
 
 from app.config import get_settings
-from app.db.chat_threads import get_active_plan_id_for_thread
+from app.db.chat_threads import get_active_plan_id_for_thread, replace_thread
 from app.db.plans import find_latest_plan_id_for_phone, find_latest_plan_id_for_user_id
+from app.schemas.chat import DraftPlanFields
 from app.schemas.nudge import NudgeRequest
 from app.schemas.plan import PlanRequest
 from app.services.chat_pipeline import run_chat_turn, run_finalize, whatsapp_thread_id_for_user
@@ -120,7 +121,7 @@ def _extract_first_step_title(plan) -> str | None:
     return None
 
 
-def _build_plan_from_text(raw_body: str):
+def _request_from_text(raw_body: str) -> PlanRequest:
     goal = (raw_body or "").strip()
     if goal.lower().startswith("plan"):
         goal = goal[4:].strip(" :.-")
@@ -128,13 +129,15 @@ def _build_plan_from_text(raw_body: str):
     if not goal:
         goal = "Help me get started on my task."
 
-    request = PlanRequest(
+    return PlanRequest(
         goal=goal,
         horizon="today",
         available_minutes=30,
         energy="medium",
     )
 
+
+def _build_plan_from_request(request: PlanRequest):
     if _has_gemini():
         try:
             return generate_plan(request)
@@ -142,6 +145,47 @@ def _build_plan_from_text(raw_body: str):
             logger.exception("Gemini plan generation failed in WhatsApp flow")
 
     return build_stub_plan(request.goal)
+
+
+def _build_plan_from_text(raw_body: str):
+    request = _request_from_text(raw_body)
+    return _build_plan_from_request(request)
+
+
+async def _seed_whatsapp_thread_for_new_goal(
+    db: AsyncIOMotorDatabase | None,
+    user_id: str,
+    raw_body: str,
+    request: PlanRequest,
+) -> None:
+    user_text = (raw_body or "").strip() or request.goal
+    await replace_thread(
+        db,
+        whatsapp_thread_id_for_user(user_id),
+        messages=[{"role": "user", "content": user_text}],
+        draft=DraftPlanFields(
+            goal=request.goal,
+            horizon=request.horizon,
+            available_minutes=request.available_minutes,
+            energy=request.energy,
+        ),
+    )
+
+
+def _default_help_text() -> str:
+    return "Commands: PLAN <task>, BUILD, STUCK, DONE. Or just chat. Reply HELP anytime."
+
+
+def _next_step_hint() -> str:
+    return "Next: BUILD for a full plan, STUCK if blocked, DONE when finished. Reply HELP anytime."
+
+
+def _follow_up_hint_for_done() -> str:
+    return "Next: PLAN <task> for something new, STUCK if you hit a wall, or HELP for commands."
+
+
+def _append_hint(message: str, hint: str) -> str:
+    return f"{message}\n\n{hint}"[:1500]
 
 
 def _build_start_reply(raw_body: str) -> str:
@@ -197,18 +241,21 @@ async def _build_stuck_reply_async(
 def get_whatsapp_reply(user_id: str, command: str, raw_body: str = "") -> str:
     try:
         if command == "start":
-            return _build_start_reply(raw_body)
+            return _append_hint(_build_start_reply(raw_body), _next_step_hint())
 
         if command == "plan":
-            return _build_start_reply(raw_body)
+            return _append_hint(_build_start_reply(raw_body), _next_step_hint())
 
         if command == "stuck":
             return _build_stuck_reply(raw_body)
 
-        if command == "done":
-            return handle_done(user_id)
+        if command == "help":
+            return _default_help_text()
 
-        return handle_unknown()
+        if command == "done":
+            return _append_hint(handle_done(user_id), _follow_up_hint_for_done())
+
+        return _append_hint(handle_unknown(), _default_help_text())
 
     except Exception:
         logger.exception("WhatsApp reply generation failed")
@@ -247,10 +294,13 @@ async def get_whatsapp_reply_async(
                     "goal": plan.summary,
                 })
             first = plan.tiny_first_step.title
-            return (
-                f"Plan ready.\n{plan.summary}\n\nFirst step: {first}\n\n"
-                f"(Reply STUCK anytime. Not clinical — crisis: 988.)"
-            )[:1500]
+            return _append_hint(
+                (
+                    f"Plan ready.\n{plan.summary}\n\nFirst step: {first}\n\n"
+                    f"(Reply STUCK anytime. Not clinical — crisis: 988.)"
+                ),
+                "Next: STUCK if blocked, DONE when finished, or PLAN <task> for something new.",
+            )
 
         if command == "stuck":
             return await _build_stuck_reply_async(db, user_id, raw_body)
@@ -262,19 +312,25 @@ async def get_whatsapp_reply_async(
                 text=(raw_body or "").strip() or ".",
                 stable_thread_id=whatsapp_thread_id_for_user(user_id),
             )
-            return out.reply[:1500]
+            hint = _next_step_hint() if out.ask_finalize else _default_help_text()
+            return _append_hint(out.reply, hint)
+
+        if command == "help":
+            return _default_help_text()
 
         if command == "done":
             reply = handle_done(user_id)
             if db is not None:
                 await insert_demo_event(db, "task_complete", {})
-            return reply
+            return _append_hint(reply, _follow_up_hint_for_done())
 
         if command in ("start", "plan"):
-            plan = _build_plan_from_text(raw_body)
+            request = _request_from_text(raw_body)
+            await _seed_whatsapp_thread_for_new_goal(db, user_id, raw_body, request)
+            plan = _build_plan_from_request(request)
             tiny = _extract_tiny_first_step(plan)
             reply = f"Start here: {tiny}" if tiny else "Start here: do the smallest possible first step."
-            return reply
+            return _append_hint(reply, _next_step_hint())
 
         if command == "stuck":
             nudge_data = None
