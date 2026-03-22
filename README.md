@@ -87,6 +87,25 @@ The `integration` marker is defined in [`backend/pytest.ini`](backend/pytest.ini
 
 For **WhatsApp / Fetch / Mongo**: add keys to `backend/.env`, then repeat and point Twilio sandbox + Fetch callbacks at your **deployed HTTPS** URL.
 
+### Manual Verification
+
+Use this checklist when Mongo + Twilio are configured. If Mongo is unavailable and the app falls back to demo mode, the UI and WhatsApp replies still work, but saved-plan/session checks below will not persist server-side.
+
+1. Create a guest user and web plan from the onboarding flow.
+   Expected: a single new `plan-<plan_id>` project appears in the web UI.
+2. In WhatsApp, send `PLAN finish linked lists assignment`.
+   Expected: WhatsApp replies with `Plan ready` plus the first step. The web app shows one plan project for that new `plan_id`, not duplicates.
+3. Reply `BUILD`.
+   Expected: WhatsApp returns the same saved plan. No second `plans` row should be created for that thread, and the web UI should still show one project for that `plan_id`.
+4. Reply `STUCK`.
+   Expected: the nudge resolves against the currently linked plan from WhatsApp rather than falling back to an unrelated task.
+5. Reply `DONE`.
+   Expected: WhatsApp replies with completion guidance, the linked thread keeps its `active_plan_id`, and Mongo records a completed session for that `plan_id` even if no session had been started before.
+6. After `DONE`, send a free-form message like `keep going`.
+   Expected: old grocery/task conversation text does not leak back in; the WhatsApp draft memory was cleared on `DONE`.
+7. Optional: send `PLAN a different task`.
+   Expected: WhatsApp seeds a fresh draft and saves a new canonical plan for that new task. The web UI switches to the new `plan-<plan_id>` project without creating duplicates for the same plan.
+
 **Production deploy (team default):** **Railway** for `backend/` (HTTPS). **Vercel** for `frontend/`; set **`VITE_API_URL`** to the Railway API origin. Add your Vercel URL(s) to backend **`CORS_ORIGINS`** on Railway. Details: [`docs/MASTER_PLAN.md`](docs/MASTER_PLAN.md) and [`docs/plans/T4_DEVOPS_FETCH.md`](docs/plans/T4_DEVOPS_FETCH.md).
 
 ## Integration contract (frozen for the hackathon)
@@ -102,4 +121,3 @@ backend/          FastAPI app, Pydantic schemas, routers, pytest
 frontend/         Vite + React + TypeScript
 docs/             Master plan + per-role playbooks (T1–T4)
 ```
-

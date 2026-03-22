@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from datetime import UTC, datetime
 
 from fastapi import HTTPException
 
@@ -14,9 +15,15 @@ from app.db.plans import find_latest_plan_id_for_phone, find_latest_plan_id_for_
 from app.schemas.chat import DraftPlanFields
 from app.schemas.nudge import NudgeRequest
 from app.schemas.plan import PlanRequest
-from app.services.chat_pipeline import run_chat_turn, run_finalize, whatsapp_thread_id_for_user
+from app.services.chat_pipeline import (
+    load_or_finalize_thread_plan,
+    persist_plan_for_thread,
+    run_chat_turn,
+    whatsapp_thread_id_for_user,
+)
 from app.services.gemini_nudge import generate_nudge
 from app.services.gemini_plan import generate_plan
+from app.services.session_logic import record_session_completion
 from app.services.mock_logic import handle_done, handle_unknown
 from app.services.mock_plan import build_stub_plan
 from motor.motor_asyncio import AsyncIOMotorDatabase
@@ -181,7 +188,11 @@ def _default_help_text() -> str:
 
 
 def _next_step_hint() -> str:
-    return "Next: BUILD for a full plan, STUCK if blocked, DONE when finished. Reply HELP anytime."
+    return "Next: STUCK if blocked, DONE when finished, or PLAN <task> for something new. Reply HELP anytime."
+
+
+def _build_ready_hint() -> str:
+    return "Next: BUILD for the full plan, STUCK if blocked, or HELP for commands."
 
 
 def _follow_up_hint_for_done() -> str:
@@ -192,17 +203,12 @@ def _append_hint(message: str, hint: str) -> str:
     return f"{message}\n\n{hint}"[:1500]
 
 
-def _build_start_reply(raw_body: str) -> str:
-    plan = _build_plan_from_text(raw_body)
-    tiny_first = _extract_tiny_first_step(plan)
-    if tiny_first:
-        return f"Start here: {tiny_first}"
-
-    first_step = _extract_first_step_title(plan)
-    if first_step:
-        return f"Start here: {first_step}"
-
-    return "Start here: do the smallest possible first step."
+def _plan_ready_reply(plan) -> str:
+    first = getattr(plan.tiny_first_step, "title", None) or "Start with the smallest possible first step."
+    return (
+        f"Plan ready.\n{plan.summary}\n\nFirst step: {first}\n\n"
+        f"(Reply STUCK anytime. Not clinical — crisis: 988.)"
+    )
 
 
 def _build_stuck_reply_with_task_id(task_id: str, raw_body: str) -> str:
@@ -245,10 +251,10 @@ async def _build_stuck_reply_async(
 def get_whatsapp_reply(user_id: str, command: str, raw_body: str = "") -> str:
     try:
         if command == "start":
-            return _append_hint(_build_start_reply(raw_body), _next_step_hint())
+            return _append_hint(_plan_ready_reply(_build_plan_from_text(raw_body)), _next_step_hint())
 
         if command == "plan":
-            return _append_hint(_build_start_reply(raw_body), _next_step_hint())
+            return _append_hint(_plan_ready_reply(_build_plan_from_text(raw_body)), _next_step_hint())
 
         if command == "stuck":
             return _build_stuck_reply(raw_body)
@@ -289,20 +295,21 @@ async def get_whatsapp_reply_async(
     try:
         if command == "finalize":
             try:
-                plan = await run_finalize(db, whatsapp_thread_id_for_user(user_id))
+                plan, created_new = await load_or_finalize_thread_plan(
+                    db,
+                    whatsapp_thread_id_for_user(user_id),
+                    user_id=user_id,
+                    reuse_linked_plan=True,
+                )
             except HTTPException as e:
                 return _http_detail(e)
-            if db is not None:
+            if db is not None and created_new:
                 await insert_demo_event(db, "new_plan", {
                     "plan": plan.model_dump(mode="json"),
                     "goal": plan.summary,
                 })
-            first = plan.tiny_first_step.title
             return _append_hint(
-                (
-                    f"Plan ready.\n{plan.summary}\n\nFirst step: {first}\n\n"
-                    f"(Reply STUCK anytime. Not clinical — crisis: 988.)"
-                ),
+                _plan_ready_reply(plan),
                 "Next: STUCK if blocked, DONE when finished, or PLAN <task> for something new.",
             )
 
@@ -316,7 +323,7 @@ async def get_whatsapp_reply_async(
                 text=(raw_body or "").strip() or ".",
                 stable_thread_id=whatsapp_thread_id_for_user(user_id),
             )
-            hint = _next_step_hint() if out.ask_finalize else _default_help_text()
+            hint = _build_ready_hint() if out.ask_finalize else _default_help_text()
             return _append_hint(out.reply, hint)
 
         if command == "help":
@@ -324,6 +331,17 @@ async def get_whatsapp_reply_async(
 
         if command == "done":
             reply = handle_done(user_id)
+            task_id = await resolve_nudge_task_id_for_whatsapp(db, user_id)
+            if task_id is not None:
+                try:
+                    await record_session_completion(
+                        db,
+                        task_id,
+                        datetime.now(UTC),
+                        "done",
+                    )
+                except Exception:
+                    logger.exception("WhatsApp done: failed to persist session completion")
             if db is not None:
                 await insert_demo_event(db, "task_complete", {})
             await reset_thread_conversation(db, whatsapp_thread_id_for_user(user_id))
@@ -333,9 +351,23 @@ async def get_whatsapp_reply_async(
             request = _request_from_text(raw_body)
             await _seed_whatsapp_thread_for_new_goal(db, user_id, raw_body, request)
             plan = _build_plan_from_request(request)
-            tiny = _extract_tiny_first_step(plan)
-            reply = f"Start here: {tiny}" if tiny else "Start here: do the smallest possible first step."
-            return _append_hint(reply, _next_step_hint())
+            persisted = await persist_plan_for_thread(
+                db,
+                whatsapp_thread_id_for_user(user_id),
+                request,
+                plan,
+                user_id=user_id,
+            )
+            if persisted:
+                await insert_demo_event(
+                    db,
+                    "new_plan",
+                    {
+                        "plan": plan.model_dump(mode="json"),
+                        "goal": request.goal,
+                    },
+                )
+            return _append_hint(_plan_ready_reply(plan), _next_step_hint())
 
         if command == "stuck":
             nudge_data = None

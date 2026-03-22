@@ -1,6 +1,7 @@
 """Simple event bus for the hackathon demo — lets WhatsApp commands push state to the web app."""
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
 from typing import Any
 
@@ -9,16 +10,25 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 COLLECTION = "demo_events"
 
 
+def _dedupe_key(event_type: str, data: dict[str, Any]) -> str:
+    return json.dumps({"type": event_type, "data": data}, sort_keys=True, default=str)
+
+
 async def insert_demo_event(db: AsyncIOMotorDatabase, event_type: str, data: dict[str, Any]) -> None:
-    # Deduplicate: skip if same event_type was inserted in the last 30 seconds (guards against Twilio retries)
+    # Deduplicate only exact repeats in the last 30 seconds (guards against Twilio retries
+    # without suppressing distinct new_plan events for different plans).
     from datetime import timedelta
     cutoff = datetime.now(UTC) - timedelta(seconds=30)
-    existing = await db[COLLECTION].find_one({"type": event_type, "timestamp": {"$gt": cutoff}})
+    dedupe_key = _dedupe_key(event_type, data)
+    existing = await db[COLLECTION].find_one(
+        {"dedupe_key": dedupe_key, "timestamp": {"$gt": cutoff}}
+    )
     if existing:
         return
     await db[COLLECTION].insert_one({
         "type": event_type,
         "data": data,
+        "dedupe_key": dedupe_key,
         "timestamp": datetime.now(UTC),
     })
 

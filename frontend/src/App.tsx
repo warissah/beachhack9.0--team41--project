@@ -63,12 +63,8 @@ export default function App() {
             setWhatsAppNudge({ message: ev.data.message, two_minute_action: ev.data.two_minute_action });
           } else if (ev.type === "new_plan") {
             const plan = ev.data.plan as import("./api/client").PlanResponse;
-            const goal = ev.data.goal || plan.summary;
-            const project = planToProject(plan, goal);
-            registerPlan(plan);
-            setProjects(prev => [project, ...prev]);
-            setActiveProject(project.id);
-            setActiveFilter(null);
+            const goal = (ev.data.goal || plan.summary).trim() || plan.summary;
+            upsertPlanProject(plan, goal);
           }
         }
       } catch {
@@ -101,15 +97,19 @@ export default function App() {
     };
   };
 
+  const upsertPlanProject = useCallback((plan: PlanResponse, goal: string) => {
+    const project = planToProject(plan, goal);
+    registerPlan(plan);
+    setProjects(prev => [project, ...prev.filter(p => p.id !== project.id)]);
+    setActiveProject(project.id);
+    setActiveFilter(null);
+  }, [registerPlan]);
+
   const handlePlanComplete = (plan: PlanResponse, goal: string, email: string, phone: string) => {
     setGuestUser(getStoredGuestUser());
     setUserEmail(email);
     setUserPhone(phone);
-    registerPlan(plan);
-    const planProject = planToProject(plan, goal);
-    setProjects(prev => [planProject, ...prev]);
-    setActiveProject(planProject.id);
-    setActiveFilter(null);
+    upsertPlanProject(plan, goal);
     setShowOnboarding(false);
   };
 

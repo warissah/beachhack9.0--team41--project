@@ -2,8 +2,9 @@ import logging
 
 from fastapi import APIRouter, Request
 
-from app.db.sessions import complete_session, insert_session_start
+from app.db.sessions import insert_session_start
 from app.schemas.session import SessionEndBody, SessionStartBody
+from app.services.session_logic import record_session_completion
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -25,8 +26,10 @@ async def session_end(request: Request, body: SessionEndBody) -> dict[str, str]:
     db = getattr(request.app.state, "mongo_db", None)
     if db is not None:
         try:
-            n = await complete_session(db, body.task_id, body.ended_at, body.reflection)
-            if n == 0:
+            result = await record_session_completion(
+                db, body.task_id, body.ended_at, body.reflection
+            )
+            if result == "skipped":
                 logger.warning(
                     "session end: no open session for task_id=%s", body.task_id
                 )
