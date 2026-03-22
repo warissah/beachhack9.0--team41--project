@@ -8,13 +8,13 @@ from app.config import cors_origin_list, get_settings
 from app.db.mongo import lifespan as mongo_lifespan
 from app.routers import chat, demo, health, internal_reminders, nudge, plan, session, users, webhooks_twilio
 
-_GEMINI_LOG_HANDLER_MARKER = "_beachhacks_gemini_stderr"
+_GEMINI_LOG_HANDLER_MARKER = "_beachhacks_app_services_stream"
 
 
 def _configure_app_logging() -> None:
     """
     Uvicorn often leaves the root logger without a handler that receives app.* records.
-    Attach a stderr StreamHandler directly to the Gemini module logger so timing INFO always shows.
+    Attach a stdout StreamHandler so timing INFO shows; stderr is often classified as "error" by hosts (e.g. Railway).
     """
     root = logging.getLogger()
     if root.level == logging.NOTSET or root.level > logging.INFO:
@@ -26,7 +26,7 @@ def _configure_app_logging() -> None:
     # One handler on app.services: child loggers (gemini_plan, gemini_nudge, …) propagate here.
     services_log = logging.getLogger("app.services")
     if not any(getattr(h, _GEMINI_LOG_HANDLER_MARKER, False) for h in services_log.handlers):
-        h = logging.StreamHandler(sys.stderr)
+        h = logging.StreamHandler(sys.stdout)
         setattr(h, _GEMINI_LOG_HANDLER_MARKER, True)
         h.setFormatter(logging.Formatter("%(levelname)s:%(name)s:%(message)s"))
         services_log.addHandler(h)
